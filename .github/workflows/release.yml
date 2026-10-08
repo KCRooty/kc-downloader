@@ -43,13 +43,13 @@ jobs:
       - name: Bundle ffmpeg
         shell: pwsh
         run: |
-          $rel = Invoke-RestMethod "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest"
-          $asset = $rel.assets | Where-Object { $_.name -like "*win64-lgpl-essentials*" } | Select-Object -First 1
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile ffmpeg.zip
-          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp -Force
-          $ffmpegExe = Get-ChildItem -Recurse ffmpeg_tmp -Filter ffmpeg.exe | Select-Object -First 1
-          Copy-Item $ffmpegExe.FullName bundle\ffmpeg.exe
-          Remove-Item ffmpeg.zip, ffmpeg_tmp -Recurse -Force
+          # windows-latest runner ships ffmpeg preinstalled
+          $src = (Get-Command ffmpeg -ErrorAction SilentlyContinue)?.Source
+          if (-not $src) {
+            choco install ffmpeg-full -y --no-progress | Out-Null
+            $src = (Get-Command ffmpeg).Source
+          }
+          Copy-Item $src bundle\ffmpeg.exe
           Write-Host "ffmpeg: $([math]::Round((Get-Item bundle\ffmpeg.exe).Length/1MB,1)) MB"
 
       - name: Bundle spotdl
