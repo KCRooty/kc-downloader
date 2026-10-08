@@ -1,0 +1,195 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ─── Windows ──────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python deps
+        run: pip install pyinstaller pillow
+
+      - name: Build exe
+        run: |
+          pyinstaller --onefile --windowed --name "KC Downloader" kc_downloader.py
+
+      - name: Prepare bundle folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force bundle | Out-Null
+          Copy-Item "dist\KC Downloader.exe" bundle\
+
+      - name: Bundle yt-dlp
+        shell: pwsh
+        run: |
+          $rel = Invoke-RestMethod "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
+          $url = ($rel.assets | Where-Object { $_.name -eq "yt-dlp.exe" }).browser_download_url
+          Invoke-WebRequest -Uri $url -OutFile "bundle\yt-dlp.exe"
+          Write-Host "yt-dlp: $([math]::Round((Get-Item bundle\yt-dlp.exe).Length/1MB,1)) MB"
+
+      - name: Bundle ffmpeg
+        shell: pwsh
+        run: |
+          $rel = Invoke-RestMethod "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest"
+          $asset = $rel.assets | Where-Object { $_.name -like "*win64-lgpl-essentials*" } | Select-Object -First 1
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp -Force
+          $ffmpegExe = Get-ChildItem -Recurse ffmpeg_tmp -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $ffmpegExe.FullName bundle\ffmpeg.exe
+          Remove-Item ffmpeg.zip, ffmpeg_tmp -Recurse -Force
+          Write-Host "ffmpeg: $([math]::Round((Get-Item bundle\ffmpeg.exe).Length/1MB,1)) MB"
+
+      - name: Bundle spotdl
+        shell: pwsh
+        run: |
+          $rel = Invoke-RestMethod "https://api.github.com/repos/spotDL/spotify-downloader/releases/latest"
+          $asset = $rel.assets | Where-Object { $_.name -like "*win32*" -and $_.name -like "*.exe" } | Select-Object -First 1
+          if ($asset) {
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "bundle\spotdl.exe"
+            Write-Host "spotdl: $([math]::Round((Get-Item bundle\spotdl.exe).Length/1MB,1)) MB"
+          } else {
+            Write-Host "spotdl asset not found, skipping"
+          }
+
+      - name: Bundle Real-ESRGAN + models
+        shell: pwsh
+        run: |
+          $rel = Invoke-RestMethod "https://api.github.com/repos/xinntao/Real-ESRGAN-ncnn-vulkan/releases/latest"
+          $asset = $rel.assets | Where-Object { $_.name -like "*windows*" } | Select-Object -First 1
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile esrgan.zip
+          Expand-Archive esrgan.zip -DestinationPath esrgan_tmp -Force
+          Copy-Item esrgan_tmp\*\realesrgan-ncnn-vulkan.exe bundle\ -ErrorAction SilentlyContinue
+          Copy-Item esrgan_tmp\*\*.dll bundle\ -ErrorAction SilentlyContinue
+          Remove-Item esrgan.zip, esrgan_tmp -Recurse -Force
+          # Models from upscayl
+          $modelsDir = "bundle\models"
+          New-Item -ItemType Directory -Force $modelsDir | Out-Null
+          $base = "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models"
+          foreach ($f in @("ultrasharp-4x.bin","ultrasharp-4x.param","upscayl-lite-4x.bin","upscayl-lite-4x.param")) {
+            Invoke-WebRequest -Uri "$base/$f" -OutFile "$modelsDir\$f"
+            Write-Host "$f : $([math]::Round((Get-Item "$modelsDir\$f").Length/1MB,1)) MB"
+          }
+
+      - name: Create release zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path bundle\* -DestinationPath kc-downloader-windows-x64.zip
+          Write-Host "ZIP: $([math]::Round((Get-Item kc-downloader-windows-x64.zip).Length/1MB,1)) MB"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: kc-downloader-windows-x64.zip
+
+  # ─── Linux ────────────────────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-tk
+
+      - name: Install Python deps
+        run: pip install pyinstaller pillow
+
+      - name: Build binary
+        run: |
+          pyinstaller --onefile --windowed --name "KC Downloader" kc_downloader.py
+
+      - name: Prepare bundle folder
+        run: |
+          mkdir -p bundle
+          cp "dist/KC Downloader" bundle/
+
+      - name: Bundle yt-dlp
+        run: |
+          URL=$(curl -s https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest \
+            | python3 -c "import sys,json; a=[x for x in json.load(sys.stdin)['assets'] if x['name']=='yt-dlp']; print(a[0]['browser_download_url'])")
+          curl -L "$URL" -o bundle/yt-dlp
+          chmod +x bundle/yt-dlp
+          echo "yt-dlp: $(du -sh bundle/yt-dlp | cut -f1)"
+
+      - name: Bundle ffmpeg
+        run: |
+          # Use the static ffmpeg from johnvansickle.com
+          curl -L "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o ffmpeg.tar.xz
+          tar -xJf ffmpeg.tar.xz
+          cp ffmpeg-*-amd64-static/ffmpeg bundle/
+          chmod +x bundle/ffmpeg
+          rm -rf ffmpeg.tar.xz ffmpeg-*-amd64-static
+          echo "ffmpeg: $(du -sh bundle/ffmpeg | cut -f1)"
+
+      - name: Bundle spotdl
+        run: |
+          URL=$(curl -s https://api.github.com/repos/spotDL/spotify-downloader/releases/latest \
+            | python3 -c "
+          import sys,json
+          assets = json.load(sys.stdin)['assets']
+          linux = [a for a in assets if 'linux' in a['name'].lower() and not a['name'].endswith('.sha256')]
+          if linux: print(linux[0]['browser_download_url'])
+          " 2>/dev/null || true)
+          if [ -n "$URL" ]; then
+            curl -L "$URL" -o bundle/spotdl
+            chmod +x bundle/spotdl
+            echo "spotdl: $(du -sh bundle/spotdl | cut -f1)"
+          else
+            echo "spotdl linux binary not found, skipping"
+          fi
+
+      - name: Create tarball
+        run: |
+          tar -czf kc-downloader-linux-x64.tar.gz -C bundle .
+          echo "TAR: $(du -sh kc-downloader-linux-x64.tar.gz | cut -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: kc-downloader-linux-x64.tar.gz
+
+  # ─── Release ──────────────────────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "KC Downloader ${{ github.ref_name }}"
+          body: |
+            ## KC Downloader ${{ github.ref_name }}
+
+            ### Download
+            | Platform | File |
+            |---|---|
+            | Windows 64-bit | `kc-downloader-windows-x64.zip` |
+            | Linux 64-bit | `kc-downloader-linux-x64.tar.gz` |
+
+            **Plug and play** — extract and run. No Python or pip needed.
+            Includes: yt-dlp · ffmpeg · spotdl · Real-ESRGAN + models (Windows only).
+          files: |
+            artifacts/windows-build/kc-downloader-windows-x64.zip
+            artifacts/linux-build/kc-downloader-linux-x64.tar.gz
