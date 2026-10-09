@@ -41,7 +41,8 @@ jobs:
       - name: Bundle yt-dlp
         shell: pwsh
         run: |
-          $rel = Invoke-RestMethod "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
+          $headers = @{Authorization = "Bearer $env:GITHUB_TOKEN"}
+          $rel = Invoke-RestMethod "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest" -Headers $headers
           $url = ($rel.assets | Where-Object { $_.name -eq "yt-dlp.exe" }).browser_download_url
           Invoke-WebRequest -Uri $url -OutFile "bundle\yt-dlp.exe"
           Write-Host "yt-dlp: $([math]::Round((Get-Item bundle\yt-dlp.exe).Length/1MB,1)) MB"
@@ -73,7 +74,8 @@ jobs:
       - name: Bundle spotdl (GitHub binary o PyInstaller fallback)
         shell: pwsh
         run: |
-          $rel   = Invoke-RestMethod "https://api.github.com/repos/spotDL/spotify-downloader/releases/latest"
+          $headers = @{Authorization = "Bearer $env:GITHUB_TOKEN"}
+          $rel   = Invoke-RestMethod "https://api.github.com/repos/spotDL/spotify-downloader/releases/latest" -Headers $headers
           $asset = $rel.assets | Where-Object {
             $_.name -like "*.exe" -and
             ($_.name -like "*win32*" -or $_.name -like "*windows*") -and
@@ -99,7 +101,8 @@ jobs:
       - name: Bundle Real-ESRGAN + models
         shell: pwsh
         run: |
-          $rel   = Invoke-RestMethod "https://api.github.com/repos/xinntao/Real-ESRGAN-ncnn-vulkan/releases/latest"
+          $headers = @{Authorization = "Bearer $env:GITHUB_TOKEN"}
+          $rel   = Invoke-RestMethod "https://api.github.com/repos/xinntao/Real-ESRGAN-ncnn-vulkan/releases/latest" -Headers $headers
           $asset = $rel.assets | Where-Object { $_.name -like "*windows*" } | Select-Object -First 1
           Invoke-WebRequest -Uri $asset.browser_download_url -OutFile esrgan.zip
           Expand-Archive esrgan.zip -DestinationPath esrgan_tmp -Force
