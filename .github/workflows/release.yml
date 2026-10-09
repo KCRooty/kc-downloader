@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag de versión (ej. v2.4)'
+        required: true
+        default: 'v2.4'
 
 permissions:
   contents: write
@@ -236,9 +242,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "KC Downloader ${{ github.ref_name }}"
+          name: "KC Downloader ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}"
+          tag_name: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}"
           body: |
-            ## KC Downloader ${{ github.ref_name }}
+            ## KC Downloader ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
 
             ### Descarga
             | Plataforma | Archivo |
