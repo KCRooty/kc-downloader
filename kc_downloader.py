@@ -165,6 +165,8 @@ class KCApp(tk.Tk):
         self.upscale_factor  = tk.StringVar(value="2x")
         self.upscale_engine  = tk.StringVar(value="Lanczos")
 
+        self.cookies_file = tk.StringVar(value="")
+
         self.items: dict[int, Item] = {}
         self._iids:  dict[int, str] = {}
         self.log_queue: "queue.Queue[str]" = queue.Queue()
@@ -330,6 +332,20 @@ class KCApp(tk.Tk):
         )
         self.update_btn.pack(side="right")
 
+        # fila cookies
+        ck_row = tk.Frame(self, bg=BG)
+        ck_row.pack(fill="x", padx=P, pady=(0, 2))
+        tk.Label(ck_row, text="COOKIES:", bg=BG, fg=FG_DIM, font=F8B).pack(side="left")
+        tk.Entry(
+            ck_row, textvariable=self.cookies_file,
+            bg=BG_ENTRY, fg=FG_DIM, relief="sunken",
+            font=(MONO_FONT, 7), insertbackground=PHOSPHOR, bd=2, width=34,
+        ).pack(side="left", padx=(4, 4))
+        tk.Label(ck_row, text="(cookies.txt de YouTube — para contenido restringido)",
+                 bg=BG, fg=FG_DIM, font=F8).pack(side="left")
+        _btn(ck_row, "Browse...", self._choose_cookies,
+             bg=BG_BTN, font=F8, padx=6, pady=1).pack(side="left", padx=4)
+
         # fila upscale
         up_row = tk.Frame(self, bg=BG)
         up_row.pack(fill="x", padx=P, pady=(0, 4))
@@ -474,6 +490,21 @@ class KCApp(tk.Tk):
             initialdir=self.out_dir.get() or os.path.expanduser("~"))
         if d:
             self.out_dir.set(d)
+
+    def _choose_cookies(self):
+        f = filedialog.askopenfilename(
+            title="Seleccionar cookies.txt (formato Netscape)",
+            filetypes=[("Cookie files", "*.txt"), ("All files", "*.*")],
+            initialdir=os.path.expanduser("~"),
+        )
+        if f:
+            self.cookies_file.set(f)
+
+    def _cookies_args(self) -> list:
+        p = self.cookies_file.get().strip()
+        if p and os.path.isfile(p):
+            return ["--cookies", p]
+        return []
 
     def _open_out_dir(self):
         d = self.out_dir.get()
@@ -674,13 +705,18 @@ class KCApp(tk.Tk):
 
     # ─── startup checks / update ──────────────────────────────────────────
     def _startup_checks(self):
-        missing = [t for t in ("yt-dlp", "spotdl", "ffmpeg") if not find_tool(t)]
-        if missing:
-            self._log(f"⚠ No encontradas en PATH: {', '.join(missing)}")
-            self._log("  → pip install yt-dlp spotdl  +  ffmpeg en PATH")
+        critical = [t for t in ("yt-dlp", "ffmpeg") if not find_tool(t)]
+        has_spotdl = bool(find_tool("spotdl"))
+        if critical:
+            self._log(f"✗ Herramientas esenciales no encontradas: {', '.join(critical)}")
+            self._log("  → Asegúrate de extraer el ZIP completo, no solo el .exe")
             self._set_status(RED, "Herramientas faltantes")
         else:
-            self._log("✓ yt-dlp · spotdl · ffmpeg — OK")
+            if has_spotdl:
+                self._log("✓ yt-dlp · ffmpeg · spotdl — OK")
+            else:
+                self._log("✓ yt-dlp · ffmpeg — OK")
+                self._log("⚠ spotdl no encontrado — Spotify usará búsqueda en YouTube")
             self._auto_update_ytdlp()
 
     def _auto_update_ytdlp(self):
@@ -740,10 +776,12 @@ class KCApp(tk.Tk):
             )
             with urllib.request.urlopen(req, timeout=8) as r:
                 data = _json.loads(r.read())
-            title = data.get("title", "").strip()
+            title  = data.get("title",  "").strip()
+            artist = data.get("author_name", "").strip()
             if title:
-                search_query = title
-                self._log(f"⟳ Spotify: {title}")
+                # Incluir artista para mejor match en YouTube
+                search_query = f"{title} {artist}" if artist and artist not in title else title
+                self._log(f"⟳ Spotify: {search_query}")
         except Exception:
             pass
 
@@ -787,6 +825,7 @@ class KCApp(tk.Tk):
             "--embed-thumbnail", "--add-metadata",
             "--retries", "5", "--fragment-retries", "5",
             "-o", out_tpl,
+            *self._cookies_args(),
         ]
         if item.audio_format not in LOSSLESS_FORMATS:
             cmd += ["--audio-quality", f"{audio_kbps(item.audio_quality)}K"]
@@ -818,6 +857,7 @@ class KCApp(tk.Tk):
                 "--embed-thumbnail", "--add-metadata",
                 "--retries", "5", "--fragment-retries", "5",
                 "-o", out_tpl,
+                *self._cookies_args(),
             ]
             if item.audio_format not in LOSSLESS_FORMATS:
                 cmd += ["--audio-quality", f"{audio_kbps(item.audio_quality)}K"]
@@ -832,6 +872,7 @@ class KCApp(tk.Tk):
                 "--merge-output-format", item.video_format.lower(),
                 "--retries", "5", "--fragment-retries", "5",
                 "-o", out_tpl,
+                *self._cookies_args(),
             ]
         return self._stream_cmd(cmd)
 
@@ -878,6 +919,7 @@ class KCApp(tk.Tk):
                 "-f", fmt_s,
                 "--merge-output-format", item.video_format.lower(),
                 "--retries", "5", "-o", out_tpl,
+                *self._cookies_args(),
             ]
             return self._stream_cmd(cmd)
         else:
