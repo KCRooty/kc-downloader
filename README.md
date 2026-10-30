@@ -1,4 +1,8 @@
+<img src="assets/logo.png" alt="KC Downloader" width="96" height="96">
+
 # KC Downloader
+
+**Project page:** [staticforge.me](https://staticforge.me/#proyectos)
 
 Desktop media downloader for **YouTube**, **YouTube Music**, **Spotify** and **Pinterest**.  
 Winamp Classic Dark UI. No setup required — download the release zip, extract, run.
