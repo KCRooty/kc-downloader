@@ -4,6 +4,16 @@
 
 **Project page:** [staticforge.me](https://staticforge.me/#proyectos)
 
+## Screenshots
+
+![KC Downloader](docs/screenshots/01-interfaz.png)
+
+*Winamp-style dark UI: paste a URL, pick audio/video/image, queue and download.*
+
+![Upscale](docs/screenshots/02-upscale.png)
+
+*Image mode with post-download upscaling (Lanczos or Real-ESRGAN).*
+
 Desktop media downloader for **YouTube**, **YouTube Music**, **Spotify** and **Pinterest**.  
 Winamp Classic Dark UI. No setup required — download the release zip, extract, run.
 
