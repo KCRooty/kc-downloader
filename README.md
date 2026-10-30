@@ -15,10 +15,16 @@
 *Image mode with post-download upscaling (Lanczos or Real-ESRGAN).*
 
 Desktop media downloader for **YouTube**, **YouTube Music**, **Spotify** and **Pinterest**.  
-Winamp Classic Dark UI. No setup required — download the release zip, extract, run.
+Winamp Classic Dark UI. Goal is zero setup — download the release zip, extract, run.
 
 ![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
+
+> ### ⚠️ Known issues (v2.4)
+> The app opens and starts, but **downloads currently fail with an error** on both the Windows and Linux builds.
+> It has not been verified working on a machine other than the one it was built on — the dependencies are
+> bundled, but a clean-machine download has not been confirmed end to end. See [`CHANGELOG.md`](CHANGELOG.md)
+> for the full list per release.
 
 ## Features
 
@@ -29,7 +35,7 @@ Winamp Classic Dark UI. No setup required — download the release zip, extract,
 - Post-download upscaling — Lanczos or **Real-ESRGAN** (ultrasharp-4x / upscayl-lite-4x)
 - Auto-update yt-dlp on startup
 
-## Download & Run (plug and play)
+## Download & Run
 
 Go to [**Releases**](../../releases) and download the zip for your platform:
 
@@ -41,7 +47,8 @@ Go to [**Releases**](../../releases) and download the zip for your platform:
 **Windows:** extract the zip → double-click `KC Downloader.exe`.  
 **Linux:** extract → `chmod +x "KC Downloader" yt-dlp ffmpeg spotdl` → run `./KC\ Downloader`.
 
-Everything (yt-dlp, ffmpeg, spotdl) is bundled. No Python or pip needed.
+yt-dlp, ffmpeg and spotdl are bundled in the zip — no Python or pip install step. See the known
+issues above: this currently gets you a working window, not a working download yet.
 
 > **Linux note:** Real-ESRGAN upscaling is not included in the Linux release. Download  
 > `realesrgan-ncnn-vulkan` and place it next to the binary if you want it.
