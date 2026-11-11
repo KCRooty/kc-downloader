@@ -29,6 +29,7 @@ jobs:
     needs: test
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     strategy:
+      fail-fast: false   # que un fallo en Linux no cancele el build de Windows
       matrix:
         include:
           - os: windows-latest
