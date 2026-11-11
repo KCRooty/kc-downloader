@@ -44,6 +44,15 @@ def open_path(path: str | Path, select: bool = False) -> None:
         return
     target = p if p.is_dir() else p.parent
     target.mkdir(parents=True, exist_ok=True)
+    if not paths.IS_WINDOWS and paths.is_frozen():
+        # xdg-open con el entorno limpio: con el LD_LIBRARY_PATH de la app
+        # el gestor de archivos carga nuestras librerías y no abre
+        try:
+            subprocess.Popen(["xdg-open", str(target)], env=paths.clean_env(),
+                             start_new_session=True)
+            return
+        except OSError:
+            pass
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
 
 

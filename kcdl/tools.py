@@ -76,6 +76,9 @@ def _popen_kw() -> dict:
     return {"creationflags": subprocess.CREATE_NO_WINDOW} if IS_WINDOWS else {}
 
 
+clean_env = paths.clean_env
+
+
 # ─── localizar ──────────────────────────────────────────────────────────────
 
 @dataclass
@@ -116,7 +119,7 @@ class ToolManager:
     def env(self) -> dict:
         """Entorno para los subprocesos: las carpetas de las herramientas van
         primero en el PATH, así yt-dlp y spotDL encuentran deno y ffmpeg."""
-        env = os.environ.copy()
+        env = clean_env()
         dirs: list[str] = []
         for key in TOOLS:
             f = self.find(key)

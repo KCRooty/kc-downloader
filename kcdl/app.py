@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import traceback
 from logging.handlers import RotatingFileHandler
@@ -25,6 +26,8 @@ def _setup_logging() -> str:
 
 def main() -> int:
     log_file = _setup_logging()
+    if "--download" in sys.argv:
+        return _cli_download(sys.argv)
 
     from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -63,6 +66,54 @@ def main() -> int:
     from PySide6.QtCore import QCoreApplication, QEvent
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     return rc
+
+
+def _cli_download(argv: list[str]) -> int:
+    """Descarga sin interfaz, con los mismos ajustes y herramientas que la app:
+    KC Downloader --download URL [--mode audio|video|image] [--out CARPETA]
+
+    El ejecutable de Windows no tiene consola, así que el registro completo y
+    el resultado van también a download-test.txt en la carpeta de datos."""
+    from . import jobs, sources, tools
+
+    def arg(name: str, default: str = "") -> str:
+        return argv[argv.index(name) + 1] if name in argv and argv.index(name) + 1 < len(argv) else default
+
+    url, mode, out = arg("--download"), arg("--mode", "audio"), arg("--out")
+    report = paths.data_dir() / "download-test.txt"
+    lines: list[str] = [f"{APP_NAME} {__version__} frozen={paths.is_frozen()} url={url} mode={mode}"]
+
+    def say(msg: str) -> None:
+        lines.append(msg)
+        try:
+            print(msg, flush=True)
+        except (OSError, ValueError, AttributeError):   # sin consola
+            pass
+
+    src = sources.detect_source(url)
+    if not src:
+        say("RESULTADO error: enlace no reconocido")
+        report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return 2
+    s = config.load()
+    if out:
+        s.dir_audio = s.dir_video = s.dir_image = out
+    tm = tools.ToolManager(s.tool_paths)
+    for key in tools.TOOLS:
+        f = tm.find(key)
+        say(f"{key}: {f.origin + ' ' + str(f.path) if f else 'falta'}")
+    pyi = sorted(k for k in os.environ if k.startswith(("_PYI_", "_MEI", "LD_LIBRARY_PATH")))
+    say(f"entorno de PyInstaller que no pasa a las herramientas: {pyi or 'ninguno'}")
+    job =jobs.Job.from_settings(url, src, mode, s)
+
+    def emit(kind: str, data) -> None:
+        if kind == "log":
+            say(str(data))
+
+    jobs.Runner(job, s, tm, emit).run()
+    say(f"RESULTADO {job.status}: {job.title} {list(job.files)} {job.error or ''}".rstrip())
+    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return 0 if job.status == "done" and all(os.path.isfile(f) for f in job.files) else 1
 
 
 def _selftest_report(app) -> None:
