@@ -7,6 +7,9 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=20"
+# Debian 11 ya no tiene soporte y su repo de seguridad lista paquetes que dan 404:
+# solo el repo principal (las librerías van al bundle, no se ejecuta como servidor).
+sed -i '/-security/d' /etc/apt/sources.list 2>/dev/null || true
 apt-get $APT update -q
 apt-get $APT install -y -q --no-install-recommends \
   binutils libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-image0 \
