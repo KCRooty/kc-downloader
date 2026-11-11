@@ -44,15 +44,29 @@ only the tools shipped in the release (no Python, no system yt-dlp/ffmpeg).
     zipapp that needed a system Python.
   - spotDL 4.6.0 can no longer get a Spotify token (upstream breakage).
 - Exit crash under X11 on Linux.
+- Found by testing the Linux release on a clean Arch Linux (same base as CachyOS),
+  not on the machine that built it:
+  - every HTTPS request made by the app itself (Spotify, Pinterest, installing
+    tools) failed with `CERTIFICATE_VERIFY_FAILED`: the bundled Python looked for
+    certificates where Debian keeps them. The app now ships its own (certifi) and
+    also uses the system store.
+  - the window did not open under X11: the xcb libraries Qt needs were silently
+    left out of the build. The build now stops if any is missing.
+- The bundled tools no longer inherit PyInstaller's internal environment
+  (`_PYI_*`, `LD_LIBRARY_PATH`), which can confuse yt-dlp / spotDL (also
+  PyInstaller programs) and the file manager on Linux.
+- On Wayland the app falls back to X11 (XWayland) if the Wayland plugin fails.
 
 ### Known issues
 - Spotify playlists are limited to what the embed page lists (about 100 tracks).
 - Spotify songs are matched by "artist - title" search: on rare tracks the first
   YouTube Music result may be a different version.
 - The spotDL fallback is broken upstream; it only helps if a future spotDL fixes it.
-- Not verified yet: Pinterest **video**, a real Real-ESRGAN upscale run, and the
-  GitHub Actions workflow itself (the build was done and tested locally on
-  Windows 11 and Debian/WSL2 with Xvfb).
+- Not verified yet: Pinterest **video**, a real Real-ESRGAN upscale run, a real
+  CachyOS/KDE desktop on Wayland, and the GitHub Actions workflow itself. Tested
+  so far: the built executables downloading YouTube audio/video and Spotify
+  (track and album) on Windows 11 with an empty PATH, Debian 13 and a clean Arch
+  Linux (window under X11/Xvfb + downloads), all in WSL2.
 - Real-ESRGAN publishes no checksums, so its download is the only one not verified
   by SHA-256.
 - Linux needs a desktop with OpenGL/EGL (`libEGL`); any normal desktop distro has it.

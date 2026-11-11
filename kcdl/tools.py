@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import paths
+from . import net, paths
 
 IS_WINDOWS = paths.IS_WINDOWS
 UA = "KC-Downloader (+https://github.com/KCRooty/kc-downloader)"
@@ -165,17 +165,17 @@ def _request(url: str) -> urllib.request.Request:
 
 
 def _get_json(url: str) -> dict:
-    with urllib.request.urlopen(_request(url), timeout=30) as r:
+    with net.urlopen(_request(url), timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
 def _get_text(url: str) -> str:
-    with urllib.request.urlopen(_request(url), timeout=30) as r:
+    with net.urlopen(_request(url), timeout=30) as r:
         return r.read().decode("utf-8", errors="replace")
 
 
 def _download(url: str, progress: ProgressCb | None) -> bytes:
-    with urllib.request.urlopen(_request(url), timeout=60) as r:
+    with net.urlopen(_request(url), timeout=60) as r:
         total = int(r.headers.get("Content-Length") or 0)
         buf = io.BytesIO()
         done = 0

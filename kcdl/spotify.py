@@ -14,6 +14,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from urllib.parse import quote_plus
 
+from . import net
+
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/130.0 Safari/537.36")
 
@@ -77,7 +79,7 @@ def fetch(url: str, timeout: float = 15) -> Entity:
     kind, sid = parsed
     req = urllib.request.Request(f"https://open.spotify.com/embed/{kind}/{sid}",
                                  headers={"User-Agent": UA, "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with net.urlopen(req, timeout=timeout) as r:
         html = r.read().decode("utf-8", errors="replace")
     return parse_embed(html)
 

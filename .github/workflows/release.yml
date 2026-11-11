@@ -64,7 +64,7 @@ jobs:
           $p = Start-Process -FilePath "dist\KC Downloader\KC Downloader.exe" -ArgumentList "--selftest" -PassThru -Wait
           Get-Content "$env:KCDL_HOME\data\selftest.txt"
           if ($p.ExitCode -ne 0) { throw "selftest rc=$($p.ExitCode)" }
-          if (Select-String -Path "$env:KCDL_HOME\data\selftest.txt" -Pattern "^(yt-dlp|ffmpeg|deno): falta") { throw "faltan herramientas en el bundle" }
+          if (Select-String -Path "$env:KCDL_HOME\data\selftest.txt" -Pattern "^(yt-dlp|ffmpeg|deno): falta|^https: fallo") { throw "faltan herramientas en el bundle" }
 
       - name: Autotest del ejecutable (Linux, X11)
         if: runner.os == 'Linux'
@@ -72,7 +72,19 @@ jobs:
           export KCDL_HOME="$RUNNER_TEMP/kcdl-selftest" QT_QPA_PLATFORM=xcb
           xvfb-run -a "dist/KC Downloader/kc-downloader" --selftest
           cat "$KCDL_HOME/data/selftest.txt"
-          ! grep -E "^(yt-dlp|ffmpeg|deno): falta" "$KCDL_HOME/data/selftest.txt"
+          ! grep -E "^(yt-dlp|ffmpeg|deno): falta|^https: fallo" "$KCDL_HOME/data/selftest.txt"
+
+      # Otra distro distinta a la que compila: aquí salieron los certificados SSL
+      # y las librerías xcb que faltaban (CachyOS/Arch).
+      - name: Autotest en Arch Linux (contenedor limpio)
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" archlinux:latest bash -c '
+            set -e
+            pacman -Sy --noconfirm --needed mesa libglvnd fontconfig libx11 libxkbcommon xorg-server-xvfb xorg-xauth >/dev/null
+            useradd -m amigo
+            su - amigo -c "tar xf /dist/*.tar.gz && cd \"KC Downloader\" && export KCDL_HOME=\$HOME/h QT_QPA_PLATFORM=xcb && xvfb-run -a ./kc-downloader --selftest && cat \$HOME/h/data/selftest.txt && ! grep -E \"^(yt-dlp|ffmpeg|deno): falta|^https: fallo\" \$HOME/h/data/selftest.txt"
+          '
 
       # Informativo: YouTube bloquea a menudo las IP de los runners de GitHub («no soy un bot»).
       - name: Descargas reales con solo el bundle
