@@ -40,7 +40,7 @@ Get the archive for your platform from [**Releases**](../../releases):
 | Platform | File |
 |---|---|
 | Windows 10/11 64-bit | `kc-downloader-<version>-windows-x64.zip` |
-| Linux 64-bit (glibc 2.35+) | `kc-downloader-<version>-linux-x64.tar.gz` |
+| Linux 64-bit (glibc 2.36+: Ubuntu 24.04+, Mint 22+, Debian 12+, Fedora 37+, Arch, CachyOS) | `kc-downloader-<version>-linux-x64.tar.gz` |
 
 **Windows:** extract the zip anywhere → open `KC Downloader.exe`.
 
