@@ -40,7 +40,7 @@ Get the archive for your platform from [**Releases**](../../releases):
 | Platform | File |
 |---|---|
 | Windows 10/11 64-bit | `kc-downloader-<version>-windows-x64.zip` |
-| Linux 64-bit (glibc 2.36+: Ubuntu 24.04+, Mint 22+, Debian 12+, Fedora 37+, Arch, CachyOS) | `kc-downloader-<version>-linux-x64.tar.gz` |
+| Linux 64-bit (glibc 2.30+: Ubuntu 22.04+, Mint 21+, Debian 11+, Fedora, Arch, CachyOS) | `kc-downloader-<version>-linux-x64.tar.gz` |
 
 **Windows:** extract the zip anywhere → open `KC Downloader.exe`.
 
@@ -104,7 +104,7 @@ releases, self-tests the executables and publishes the release with the notes fr
 
 ## Known issues
 
-See the [v3.0.0 notes in `CHANGELOG.md`](CHANGELOG.md) — mainly: Spotify playlists are
+See the notes in [`CHANGELOG.md`](CHANGELOG.md). Mainly: Spotify playlists are
 capped at about 100 tracks, and Pinterest video and Real-ESRGAN have not been tested end to end yet.
 
 ## Stack

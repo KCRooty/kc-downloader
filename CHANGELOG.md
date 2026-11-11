@@ -2,6 +2,29 @@
 
 All notable changes to KC Downloader are documented here.
 
+## [v3.0.1] - 2026-11-11
+
+Linux release that also runs on older distros. No changes to the app itself.
+
+### Fixed
+- **Linux: Ubuntu 22.04 and other older distros.** The Linux build now runs inside
+  Debian 11 instead of Debian 12, so the package needs glibc 2.30 instead of 2.36.
+  Tested on a clean Ubuntu 22.04 and a clean Arch Linux. By glibc it should also run
+  on Ubuntu 20.04, Linux Mint 20+, Debian 11+ and Fedora 32+, but those are not tested.
+- **Linux:** `libxcb-randr` is now shipped inside the package, so the window opens on
+  minimal installs that lack it.
+
+### CI
+- Every build reports the newest glibc any file in the package needs, and fails if it
+  is newer than Ubuntu 22.04's (2.35).
+- The Linux package is self-tested on a clean Ubuntu 22.04 (no certificates installed)
+  and on a clean Arch Linux.
+
+### Known issues
+- Same as v3.0.0 below. The Linux build uses Debian 11, which no longer gets security
+  updates; that only affects the system libraries copied into the package
+  (X11/xcb helpers), not the downloads.
+
 ## [v3.0.0] - 2026-11-11
 
 Full rewrite. Downloads work again on Windows and Linux, verified end to end with
