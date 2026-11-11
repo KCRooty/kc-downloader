@@ -1,9 +1,10 @@
 build/
 dist/
 __pycache__/
-*.spec
+/*.spec
 *.pyc
 .env
+.pytest_cache/
 KC-Downloader-Linux/
 iniciar.bat
 iniciar.sh

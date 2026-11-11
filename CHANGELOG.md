@@ -2,6 +2,65 @@
 
 All notable changes to KC Downloader are documented here.
 
+## [v3.0.0] - 2026-11-11
+
+Full rewrite. Downloads work again on Windows and Linux, verified end to end with
+only the tools shipped in the release (no Python, no system yt-dlp/ffmpeg).
+
+### Changed
+- **New interface (PySide6 / Qt)** replacing the Tkinter Winamp skin: light, dark or
+  system theme, custom accent colour, adjustable font size. Queue with per-item
+  progress, speed, ETA, open folder / retry / cancel / remove. Collapsible log.
+  Drag & drop and Ctrl+V to add one or many links.
+- **Settings window** (saved per user: `%APPDATA%\KC Downloader` / `~/.config/kc-downloader`):
+  - Appearance: theme, accent, font size, show log.
+  - Folders & names: one folder per mode (audio / video / image) and yt-dlp name
+    templates for audio, video, Spotify and playlist folders.
+  - Formats: audio MP3 / M4A / OPUS / OGG / FLAC / WAV with bitrate; video up to
+    max resolution, 30/60 fps, MP4 / MKV / WEBM / MOV; embed cover and metadata;
+    subtitles; auto-start on add.
+  - Network & accounts: cookies from browser or `cookies.txt`, proxy, speed limit,
+    parallel downloads (1–6).
+  - Images: optional upscaling (Real-ESRGAN or Lanczos, x2/x3/x4).
+- **Tool manager**: yt-dlp, FFmpeg and Deno (required), spotDL and Real-ESRGAN
+  (optional). Lookup order: manual path → copy managed by the app → copy shipped
+  in the release → system PATH. Install/update from the official releases with
+  SHA-256 verification, into the user folder (no admin rights). Optional daily
+  yt-dlp auto-update.
+- **Spotify** no longer depends on spotDL: track / album / playlist are read from
+  Spotify's public embed page and each song is fetched from YouTube Music.
+  spotDL is kept only as a fallback.
+- Releases are a folder (PyInstaller onedir) with `tools/` next to the executable.
+  Linux bundle includes the X11 xcb libraries Qt needs, plus `install.sh` to add a
+  menu entry.
+- `--selftest` flag (writes a tool report and exits), used by CI.
+
+### Fixed
+- Downloads failing on every machine (v2.3–v2.4). Root causes:
+  - Windows: the bundled `ffmpeg`/`ffprobe` were Chocolatey shims pointing at the
+    build machine, so they did nothing elsewhere.
+  - YouTube now requires a JavaScript runtime; Deno was missing.
+  - Linux: spotDL missing data files (pykakasi) and yt-dlp packaged as a Python
+    zipapp that needed a system Python.
+  - spotDL 4.6.0 can no longer get a Spotify token (upstream breakage).
+- Exit crash under X11 on Linux.
+
+### Known issues
+- Spotify playlists are limited to what the embed page lists (about 100 tracks).
+- Spotify songs are matched by "artist - title" search: on rare tracks the first
+  YouTube Music result may be a different version.
+- The spotDL fallback is broken upstream; it only helps if a future spotDL fixes it.
+- Not verified yet: Pinterest **video**, a real Real-ESRGAN upscale run, and the
+  GitHub Actions workflow itself (the build was done and tested locally on
+  Windows 11 and Debian/WSL2 with Xvfb).
+- Real-ESRGAN publishes no checksums, so its download is the only one not verified
+  by SHA-256.
+- Linux needs a desktop with OpenGL/EGL (`libEGL`); any normal desktop distro has it.
+- The release archive is big (~260 MB Windows, ~290 MB Linux) because it carries
+  FFmpeg, Deno and Real-ESRGAN.
+- YouTube may ask some IPs to "confirm you're not a bot"; use cookies from your
+  browser in Settings → Network & accounts.
+
 ## [v2.4] - 2026-10-09
 
 ### Added
