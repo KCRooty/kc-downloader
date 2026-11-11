@@ -19,6 +19,28 @@ def is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
+def clean_env() -> dict:
+    """Entorno del sistema sin lo que PyInstaller mete al arrancar la app.
+
+    yt-dlp y spotDL también son ejecutables de PyInstaller: si heredan las
+    variables _PYI_* de la app (o su LD_LIBRARY_PATH en Linux) se lían con
+    la carpeta interna de KC Downloader y fallan. Solo pasa con la app
+    compilada, nunca desde el código fuente."""
+    env = os.environ.copy()
+    if not is_frozen():
+        return env
+    for k in [k for k in env if k.startswith(("_PYI_", "_MEI"))]:
+        del env[k]
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    for var in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+        orig = env.pop(var + "_ORIG", None)
+        if orig is not None:
+            env[var] = orig
+        else:
+            env.pop(var, None)
+    return env
+
+
 def app_dir() -> Path:
     """Carpeta del ejecutable (empaquetado) o raíz del repo (desde código)."""
     if is_frozen():
@@ -69,7 +91,7 @@ def downloads_dir() -> Path:
     if not IS_WINDOWS:
         try:
             out = subprocess.run(["xdg-user-dir", "DOWNLOAD"], capture_output=True,
-                                 text=True, timeout=3).stdout.strip()
+                                 text=True, timeout=3, env=clean_env()).stdout.strip()
             if out and out != str(Path.home()):
                 return Path(out)
         except (OSError, subprocess.SubprocessError):

@@ -30,7 +30,8 @@ def upscale_file(src: Path, factor: int, engine: str, tm: ToolManager,
             cmd = [str(found.path), "-i", str(src), "-o", str(out),
                    "-n", model, "-s", str(factor), "-m", str(found.path.parent / "models")]
             kw = {"creationflags": subprocess.CREATE_NO_WINDOW} if paths.IS_WINDOWS else {}
-            r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", **kw)
+            r = subprocess.run(cmd, capture_output=True, text=True, errors="replace",
+                               env=tm.env(), **kw)
             if r.returncode == 0 and out.is_file():
                 log(f"Real-ESRGAN x{factor}: {out.name}")
                 return out
