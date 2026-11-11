@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from . import paths
+from . import net, paths
 from .config import LOSSLESS_AUDIO, VIDEO_RES_HEIGHT, Settings
 from .tools import ToolManager
 
@@ -462,7 +462,7 @@ def pinterest_image(url: str, out_dir: Path, log: Callable[[str], None]) -> Path
     try:
         enc = urllib.parse.quote(url, safe="")
         req = urllib.request.Request(f"https://www.pinterest.com/oembed.json?url={enc}", headers=headers)
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with net.urlopen(req, timeout=15) as r:
             data = json.loads(r.read())
         img_url = data.get("thumbnail_url") or None
         title = data.get("title") or None
@@ -470,7 +470,7 @@ def pinterest_image(url: str, out_dir: Path, log: Callable[[str], None]) -> Path
         log(f"Pinterest oEmbed no respondió ({e}); probando la página del pin")
     if not img_url:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with net.urlopen(req, timeout=20) as r:
             html = r.read(400_000).decode("utf-8", errors="replace")
         for pat in (r'"orig":\{"url":"([^"]+)"', r'<meta property="og:image"\s+content="([^"]+)"',
                     r'"736x":\{"url":"([^"]+)"'):
@@ -492,7 +492,7 @@ def pinterest_image(url: str, out_dir: Path, log: Callable[[str], None]) -> Path
     for cand in dict.fromkeys(candidates):
         try:
             req = urllib.request.Request(cand, headers={**headers, "Referer": "https://www.pinterest.com/"})
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with net.urlopen(req, timeout=30) as r:
                 ctype = r.headers.get("Content-Type", "")
                 data = r.read()
             if not ctype.startswith("image/"):

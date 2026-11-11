@@ -29,6 +29,11 @@ def main() -> int:
     if "--download" in sys.argv:
         return _cli_download(sys.argv)
 
+    if (sys.platform.startswith("linux") and "QT_QPA_PLATFORM" not in os.environ
+            and os.environ.get("WAYLAND_DISPLAY")):
+        # Wayland si se puede; si su plugin falla, X11 (XWayland) en vez de no abrir
+        os.environ["QT_QPA_PLATFORM"] = "wayland;xcb"
+
     from PySide6.QtWidgets import QApplication, QMessageBox
 
     from .ui import theme
@@ -126,6 +131,12 @@ def _selftest_report(app) -> None:
     except ImportError as e:
         lines.append(f"FALLO Pillow: {e}")
     lines.append(f"Qt plataforma: {app.platformName()}")
+    from . import net
+    try:   # certificados: en otra distro el Python empaquetado no encontraba los suyos
+        with net.urlopen("https://github.com", timeout=15) as r:
+            lines.append(f"https: ok ({r.status})")
+    except Exception as e:  # noqa: BLE001 — se informa, no se oculta
+        lines.append(f"https: fallo {e}")
     tm = tools.ToolManager()
     for key in tools.TOOLS:
         f = tm.find(key)
