@@ -33,8 +33,10 @@ jobs:
         include:
           - os: windows-latest
             artifact: windows
-          # 22.04: glibc más antigua = el binario funciona en más distros
-          - os: ubuntu-22.04
+          # El build de Linux va dentro de un contenedor Debian 12 (glibc 2.36): el
+          # binario sirve en más distros y no depende de los mirrors de Ubuntu del
+          # runner, que no respondían el día de la v3.0.0.
+          - os: ubuntu-latest
             artifact: linux
     runs-on: ${{ matrix.os }}
     steps:
@@ -43,22 +45,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Bibliotecas X11 para el bundle de Linux
-        if: runner.os == 'Linux'
-        timeout-minutes: 10
-        run: |
-          # El mirror de Azure de los runners a veces no resuelve (visto en v3.0.0):
-          # se usa el de Ubuntu directamente, con reintentos y tiempos cortos.
-          sudo sed -i -E 's#(mirror\+file:/etc/apt/apt-mirrors.txt|https?://azure\.archive\.ubuntu\.com/ubuntu/?)#http://archive.ubuntu.com/ubuntu/#g' \
-            /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-          APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20"
-          sudo apt-get $APT update -q
-          sudo apt-get $APT install -y -q libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
-            libxcb-image0 libxcb-render-util0 libxkbcommon-x11-0 libegl1 xvfb
-
       - run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Build (app + herramientas oficiales con SHA-256)
+        if: runner.os == 'Windows'
         run: python packaging/build.py
 
       - name: Autotest del ejecutable (Windows)
@@ -72,13 +62,10 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "selftest rc=$($p.ExitCode)" }
           if (Select-String -Path "$env:KCDL_HOME\data\selftest.txt" -Pattern "^(yt-dlp|ffmpeg|deno): falta|^https: fallo") { throw "faltan herramientas en el bundle" }
 
-      - name: Autotest del ejecutable (Linux, X11)
+      - name: Build y autotest X11 (Linux, contenedor Debian 12)
         if: runner.os == 'Linux'
-        run: |
-          export KCDL_HOME="$RUNNER_TEMP/kcdl-selftest" QT_QPA_PLATFORM=xcb
-          xvfb-run -a "dist/KC Downloader/kc-downloader" --selftest
-          cat "$KCDL_HOME/data/selftest.txt"
-          ! grep -E "^(yt-dlp|ffmpeg|deno): falta|^https: fallo" "$KCDL_HOME/data/selftest.txt"
+        timeout-minutes: 25
+        run: docker run --rm -v "$PWD:/src" -w /src python:3.12-slim-bookworm bash packaging/linux/ci-build.sh
 
       # Otra distro distinta a la que compila: aquí salieron los certificados SSL
       # y las librerías xcb que faltaban (CachyOS/Arch).
