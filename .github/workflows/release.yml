@@ -45,9 +45,15 @@ jobs:
 
       - name: Bibliotecas X11 para el bundle de Linux
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
+          # El mirror de Azure de los runners a veces no resuelve (visto en v3.0.0):
+          # se usa el de Ubuntu directamente, con reintentos y tiempos cortos.
+          sudo sed -i -E 's#(mirror\+file:/etc/apt/apt-mirrors.txt|https?://azure\.archive\.ubuntu\.com/ubuntu/?)#http://archive.ubuntu.com/ubuntu/#g' \
+            /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+          APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20"
+          sudo apt-get $APT update -q
+          sudo apt-get $APT install -y -q libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
             libxcb-image0 libxcb-render-util0 libxkbcommon-x11-0 libegl1 xvfb
 
       - run: pip install -r requirements.txt -r requirements-dev.txt
