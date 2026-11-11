@@ -4,73 +4,112 @@
 
 **Project page:** [staticforge.me](https://staticforge.me/#proyectos)
 
-## Screenshots
-
-![KC Downloader](docs/screenshots/01-interfaz.png)
-
-*Winamp-style dark UI: paste a URL, pick audio/video/image, queue and download.*
-
-![Upscale](docs/screenshots/02-upscale.png)
-
-*Image mode with post-download upscaling (Lanczos or Real-ESRGAN).*
-
-Desktop media downloader for **YouTube**, **YouTube Music**, **Spotify** and **Pinterest**.  
-Winamp Classic Dark UI. Goal is zero setup — download the release zip, extract, run.
+Desktop media downloader for **YouTube**, **YouTube Music**, **Spotify** and **Pinterest**.
+Download the release, extract, run — the tools it needs come inside.
 
 ![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
 
-> ### ⚠️ Known issues (v2.4)
-> The app opens and starts, but **downloads currently fail with an error** on both the Windows and Linux builds.
-> It has not been verified working on a machine other than the one it was built on — the dependencies are
-> bundled, but a clean-machine download has not been confirmed end to end. See [`CHANGELOG.md`](CHANGELOG.md)
-> for the full list per release.
+![Queue, dark theme](docs/screenshots/01-cola-oscuro.png)
+
+| Light theme | Settings → Formats | Settings → Tools |
+|---|---|---|
+| ![](docs/screenshots/02-cola-claro.png) | ![](docs/screenshots/03-ajustes-formatos.png) | ![](docs/screenshots/04-herramientas.png) |
 
 ## Features
 
-- YouTube & YouTube Music — audio (MP3/WAV/FLAC/OGG) and video (up to 4K)
-- Spotify — downloads via spotdl (track / album / playlist)
-- Pinterest — images at original resolution + videos; CDN cascade (originals → 736x → 474x)
-- Queue system — add multiple URLs, download all at once
-- Post-download upscaling — Lanczos or **Real-ESRGAN** (ultrasharp-4x / upscayl-lite-4x)
-- Auto-update yt-dlp on startup
+- **YouTube & YouTube Music** — audio (MP3, M4A, OPUS, OGG, FLAC, WAV) or video
+  (up to max resolution, 30/60 fps, MP4 / MKV / WEBM / MOV), playlists into their own folder.
+- **Spotify** — track, album or playlist; each song is fetched from YouTube Music
+  with cover and tags. No Spotify account or API key.
+- **Pinterest** — images at original size (originals → 736x → 474x) and videos.
+- **Queue** — paste or drag many links at once, parallel downloads, progress / speed / ETA,
+  retry, cancel, open the file's folder.
+- **Image upscaling** — Real-ESRGAN (GPU, Vulkan) or Lanczos, x2 / x3 / x4.
+- **Everything configurable** — theme (light / dark / system), accent colour, font size,
+  folders and file-name templates, default formats, cookies, proxy, speed limit.
+- **Self-managed tools** — installs and updates yt-dlp, FFmpeg and Deno from their
+  official releases (SHA-256 checked), no admin rights.
 
-## Download & Run
+The interface is in Spanish.
 
-Go to [**Releases**](../../releases) and download the zip for your platform:
+## Download & run
+
+Get the archive for your platform from [**Releases**](../../releases):
 
 | Platform | File |
 |---|---|
-| Windows 64-bit | `kc-downloader-windows-x64.zip` |
-| Linux 64-bit | `kc-downloader-linux-x64.tar.gz` |
+| Windows 10/11 64-bit | `kc-downloader-<version>-windows-x64.zip` |
+| Linux 64-bit (glibc 2.35+) | `kc-downloader-<version>-linux-x64.tar.gz` |
 
-**Windows:** extract the zip → double-click `KC Downloader.exe`.  
-**Linux:** extract → `chmod +x "KC Downloader" yt-dlp ffmpeg spotdl` → run `./KC\ Downloader`.
+**Windows:** extract the zip anywhere → open `KC Downloader.exe`.
 
-yt-dlp, ffmpeg and spotdl are bundled in the zip — no Python or pip install step. See the known
-issues above: this currently gets you a working window, not a working download yet.
+**Linux:**
+```bash
+tar xf kc-downloader-*-linux-x64.tar.gz
+cd "KC Downloader"
+./kc-downloader            # run it
+./install.sh               # optional: add it to the applications menu (./install.sh --remove to undo)
+```
+It runs on X11 and Wayland. It only needs what any desktop distro already has (OpenGL/EGL).
 
-> **Linux note:** Real-ESRGAN upscaling is not included in the Linux release. Download  
-> `realesrgan-ncnn-vulkan` and place it next to the binary if you want it.
+## Tools
 
-## Real-ESRGAN (Windows — included in release)
+KC Downloader drives these free programs:
 
-The Windows zip includes `realesrgan-ncnn-vulkan.exe` and two models in `models/`:
-- `ultrasharp-4x` — best quality for photos and wallpapers (4x)
-- `upscayl-lite-4x` — faster, lighter model (2x/4x)
+| Tool | Needed for | Shipped in the release |
+|---|---|---|
+| yt-dlp | every download | yes |
+| FFmpeg | merging, converting, covers | yes |
+| Deno | YouTube (JavaScript challenges) | yes |
+| Real-ESRGAN | AI upscaling (optional) | yes |
+| spotDL | old Spotify fallback (optional) | no |
 
-Enable it in the app: check **Upscale** → pick **Real-ESRGAN** → choose 2x or 4x.
+For each one it uses, in this order: a path you chose → a copy the app installed in your
+user folder → the copy shipped next to the executable → whatever is on the system PATH.
+**Settings → Tools** shows which one is in use, and installs or updates them.
+YouTube changes often: keep "update yt-dlp automatically" on, or press **Update all**
+when downloads start failing.
+
+## Where things are saved
+
+| | Windows | Linux |
+|---|---|---|
+| Settings | `%APPDATA%\KC Downloader\settings.json` | `~/.config/kc-downloader/settings.json` |
+| Tools installed by the app, log | `%LOCALAPPDATA%\KC Downloader\` | `~/.local/share/kc-downloader/` |
+| Downloads (default) | `Downloads\KC Downloader\{Audio,Vídeo,Imágenes}` | same, under your XDG Downloads folder |
+
+Set `KCDL_HOME=<folder>` to keep settings and tools in one folder (portable mode).
 
 ## Build from source
 
+Python 3.12+.
+
 ```bash
-pip install yt-dlp spotdl pillow pyinstaller
-pyinstaller --onefile --windowed --name "KC Downloader" kc_downloader.py
+pip install -r requirements.txt -r requirements-dev.txt
+python kc_downloader.py               # run from source
+python -m pytest -q tests             # unit tests
+python packaging/build.py             # build + bundle tools -> dist/*.zip | dist/*.tar.gz
+python packaging/build.py --no-tools  # build without bundling tools
 ```
+
+On Linux, install the X11 libraries before building so they get bundled:
+`libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-image0 libxcb-render-util0 libxkbcommon-x11-0`.
+
+Real downloads test (network): `KCDL_E2E=1 python -m pytest -q tests/test_e2e.py`.
+
+Pushing a `v*` tag runs the GitHub Actions workflow: tests on Windows and Linux, builds both
+releases, self-tests the executables and publishes the release with the notes from
+[`CHANGELOG.md`](CHANGELOG.md).
+
+## Known issues
+
+See the [v3.0.0 notes in `CHANGELOG.md`](CHANGELOG.md) — mainly: Spotify playlists are
+capped at about 100 tracks, and Pinterest video and Real-ESRGAN have not been tested end to end yet.
 
 ## Stack
 
-Python 3.12 · Tkinter · yt-dlp · spotdl · ffmpeg · Pillow · realesrgan-ncnn-vulkan
+Python · PySide6 (Qt 6) · yt-dlp · FFmpeg · Deno · Pillow · Real-ESRGAN ncnn Vulkan · PyInstaller
 
 ---
 

@@ -2,297 +2,109 @@ name: Build & Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
+  pull_request:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag de versión (ej. v2.4)'
-        required: true
-        default: 'v2.4'
 
 permissions:
   contents: write
 
 jobs:
-  # ─── Windows ──────────────────────────────────────────────────────────────
-  build-windows:
-    runs-on: windows-latest
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pyflakes kcdl tests
+      - run: python -m pytest -q tests
 
+  build:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: windows
+          # 22.04: glibc más antigua = el binario funciona en más distros
+          - os: ubuntu-22.04
+            artifact: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install Python deps
-        run: pip install pyinstaller pillow spotdl
-
-      - name: Build main exe
+      - name: Bibliotecas X11 para el bundle de Linux
+        if: runner.os == 'Linux'
         run: |
-          pyinstaller --onefile --windowed --name "KC Downloader" kc_downloader.py
+          sudo apt-get update -q
+          sudo apt-get install -y -q libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
+            libxcb-image0 libxcb-render-util0 libxkbcommon-x11-0 libegl1 xvfb
 
-      - name: Prepare bundle folder
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Build (app + herramientas oficiales con SHA-256)
+        run: python packaging/build.py
+
+      - name: Autotest del ejecutable (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force bundle | Out-Null
-          Copy-Item "dist\KC Downloader.exe" bundle\
+          $env:KCDL_HOME = "$env:RUNNER_TEMP\kcdl-selftest"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $p = Start-Process -FilePath "dist\KC Downloader\KC Downloader.exe" -ArgumentList "--selftest" -PassThru -Wait
+          Get-Content "$env:KCDL_HOME\data\selftest.txt"
+          if ($p.ExitCode -ne 0) { throw "selftest rc=$($p.ExitCode)" }
+          if (Select-String -Path "$env:KCDL_HOME\data\selftest.txt" -Pattern "^(yt-dlp|ffmpeg|deno): falta") { throw "faltan herramientas en el bundle" }
 
-      - name: Bundle yt-dlp
-        shell: pwsh
+      - name: Autotest del ejecutable (Linux, X11)
+        if: runner.os == 'Linux'
+        run: |
+          export KCDL_HOME="$RUNNER_TEMP/kcdl-selftest" QT_QPA_PLATFORM=xcb
+          xvfb-run -a "dist/KC Downloader/kc-downloader" --selftest
+          cat "$KCDL_HOME/data/selftest.txt"
+          ! grep -E "^(yt-dlp|ffmpeg|deno): falta" "$KCDL_HOME/data/selftest.txt"
+
+      # Informativo: YouTube bloquea a menudo las IP de los runners de GitHub («no soy un bot»).
+      - name: Descargas reales con solo el bundle
+        continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $rel = gh api repos/yt-dlp/yt-dlp/releases/latest | ConvertFrom-Json
-          $url = ($rel.assets | Where-Object { $_.name -eq "yt-dlp.exe" }).browser_download_url
-          Invoke-WebRequest -Uri $url -OutFile "bundle\yt-dlp.exe"
-          Write-Host "yt-dlp: $([math]::Round((Get-Item bundle\yt-dlp.exe).Length/1MB,1)) MB"
-
-      - name: Bundle ffmpeg + ffprobe
-        shell: pwsh
-        run: |
-          $src = (Get-Command ffmpeg -ErrorAction SilentlyContinue)?.Source
-          if (-not $src) {
-            choco install ffmpeg-full -y --no-progress | Out-Null
-            $src = (Get-Command ffmpeg).Source
-          }
-          Copy-Item $src bundle\ffmpeg.exe
-          Write-Host "ffmpeg: $([math]::Round((Get-Item bundle\ffmpeg.exe).Length/1MB,1)) MB"
-
-          # ffprobe está siempre en el mismo directorio que ffmpeg
-          $ffmpegDir  = Split-Path $src
-          $ffprobeSrc = Join-Path $ffmpegDir "ffprobe.exe"
-          if (-not (Test-Path $ffprobeSrc)) {
-            $ffprobeSrc = (Get-Command ffprobe -ErrorAction SilentlyContinue)?.Source
-          }
-          if ($ffprobeSrc -and (Test-Path $ffprobeSrc)) {
-            Copy-Item $ffprobeSrc bundle\ffprobe.exe
-            Write-Host "ffprobe: $([math]::Round((Get-Item bundle\ffprobe.exe).Length/1MB,1)) MB"
-          } else {
-            Write-Host "::warning::ffprobe no encontrado"
-          }
-
-      - name: Bundle spotdl (GitHub binary o PyInstaller fallback)
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $rel   = gh api repos/spotDL/spotify-downloader/releases/latest | ConvertFrom-Json
-          $asset = $rel.assets | Where-Object {
-            $_.name -like "*.exe" -and
-            ($_.name -like "*win32*" -or $_.name -like "*windows*") -and
-            $_.name -notlike "*.sha*" -and $_.name -notlike "*.sig*"
-          } | Select-Object -First 1
-
-          if ($asset) {
-            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "bundle\spotdl.exe"
-            Write-Host "spotdl (binary): $([math]::Round((Get-Item bundle\spotdl.exe).Length/1MB,1)) MB"
-          } else {
-            Write-Host "No se encontró binario de spotdl, compilando con PyInstaller..."
-            Set-Content -Path spotdl_main.py -Value @"
-          from spotdl.__main__ import main
-          if __name__ == '__main__':
-              main()
-          "@
-            pyinstaller --onefile --name spotdl spotdl_main.py `
-              --collect-all spotdl --noconfirm --log-level WARN
-            Copy-Item dist\spotdl.exe bundle\
-            Write-Host "spotdl (pyinstaller): $([math]::Round((Get-Item bundle\spotdl.exe).Length/1MB,1)) MB"
-          }
-
-      - name: Bundle Real-ESRGAN + models
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $rel   = gh api repos/xinntao/Real-ESRGAN-ncnn-vulkan/releases/latest | ConvertFrom-Json
-          $asset = $rel.assets | Where-Object { $_.name -like "*windows*" } | Select-Object -First 1
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile esrgan.zip
-          Expand-Archive esrgan.zip -DestinationPath esrgan_tmp -Force
-          Copy-Item esrgan_tmp\*\realesrgan-ncnn-vulkan.exe bundle\ -ErrorAction SilentlyContinue
-          Copy-Item esrgan_tmp\*\*.dll                       bundle\ -ErrorAction SilentlyContinue
-          Remove-Item esrgan.zip, esrgan_tmp -Recurse -Force
-          $modelsDir = "bundle\models"
-          New-Item -ItemType Directory -Force $modelsDir | Out-Null
-          $base = "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models"
-          foreach ($f in @("ultrasharp-4x.bin","ultrasharp-4x.param","upscayl-lite-4x.bin","upscayl-lite-4x.param")) {
-            Invoke-WebRequest -Uri "$base/$f" -OutFile "$modelsDir\$f"
-            Write-Host "$f : $([math]::Round((Get-Item "$modelsDir\$f").Length/1MB,1)) MB"
-          }
-
-      - name: Add cookies template
-        shell: pwsh
-        run: |
-          Set-Content -Path "bundle\cookies_TEMPLATE.txt" -Encoding UTF8 -Value @"
-          # KC Downloader — cookies.txt (formato Netscape)
-          #
-          # Para contenido de YouTube con restricción de edad o membresías:
-          # 1. Instala la extensión "Get cookies.txt LOCALLY" en Chrome o Firefox
-          # 2. Ve a youtube.com con tu sesión iniciada
-          # 3. Haz clic en la extensión y exporta las cookies de youtube.com
-          # 4. Guarda el archivo como cookies.txt
-          # 5. En KC Downloader, pulsa el botón "Cookies: Browse..." y selecciónalo
-          #
-          # Para Spotify NO hace falta cookies — la app descarga via YouTube.
-          #
-          # Netscape HTTP Cookie File — NO BORRAR ESTA LÍNEA
-          "@
-
-      - name: Create release zip
-        shell: pwsh
-        run: |
-          Compress-Archive -Path bundle\* -DestinationPath kc-downloader-windows-x64.zip
-          Write-Host "ZIP total: $([math]::Round((Get-Item kc-downloader-windows-x64.zip).Length/1MB,1)) MB"
+          KCDL_E2E: '1'
+          KCDL_E2E_STRICT: '1'
+        shell: bash
+        run: KCDL_E2E_BUNDLE="$PWD/dist/KC Downloader/tools" python -m pytest -q tests/test_e2e.py
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-build
-          path: kc-downloader-windows-x64.zip
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
 
-  # ─── Linux ────────────────────────────────────────────────────────────────
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install system deps
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y python3-tk
-
-      - name: Install Python deps
-        run: pip install pyinstaller pillow spotdl
-
-      - name: Build main binary
-        run: |
-          pyinstaller --onefile --windowed --name "KC Downloader" kc_downloader.py
-
-      - name: Prepare bundle folder
-        run: |
-          mkdir -p bundle
-          cp "dist/KC Downloader" bundle/
-
-      - name: Bundle yt-dlp
-        run: |
-          URL=$(curl -s https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest \
-            | python3 -c "import sys,json; a=[x for x in json.load(sys.stdin)['assets'] if x['name']=='yt-dlp']; print(a[0]['browser_download_url'])")
-          curl -L "$URL" -o bundle/yt-dlp
-          chmod +x bundle/yt-dlp
-          echo "yt-dlp: $(du -sh bundle/yt-dlp | cut -f1)"
-
-      - name: Bundle ffmpeg + ffprobe (static)
-        run: |
-          curl -L "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o ffmpeg.tar.xz
-          tar -xJf ffmpeg.tar.xz
-          cp ffmpeg-*-amd64-static/ffmpeg  bundle/
-          cp ffmpeg-*-amd64-static/ffprobe bundle/
-          chmod +x bundle/ffmpeg bundle/ffprobe
-          rm -rf ffmpeg.tar.xz ffmpeg-*-amd64-static
-          echo "ffmpeg:  $(du -sh bundle/ffmpeg  | cut -f1)"
-          echo "ffprobe: $(du -sh bundle/ffprobe | cut -f1)"
-
-      - name: Bundle spotdl (PyInstaller)
-        run: |
-          # Crear entry point mínimo
-          cat > /tmp/spotdl_main.py << 'PYEOF'
-          from spotdl.__main__ import main
-          if __name__ == "__main__":
-              main()
-          PYEOF
-          pyinstaller --onefile --name spotdl /tmp/spotdl_main.py \
-            --collect-all spotdl --noconfirm --log-level WARN
-          cp dist/spotdl bundle/
-          chmod +x bundle/spotdl
-          echo "spotdl: $(du -sh bundle/spotdl | cut -f1)"
-
-      - name: Add cookies template
-        run: |
-          cat > bundle/cookies_TEMPLATE.txt << 'EOF'
-          # KC Downloader — cookies.txt (formato Netscape)
-          #
-          # Para contenido de YouTube con restricción de edad o membresías:
-          # 1. Instala la extensión "Get cookies.txt LOCALLY" en Chrome o Firefox
-          # 2. Ve a youtube.com con tu sesión iniciada
-          # 3. Haz clic en la extensión y exporta las cookies de youtube.com
-          # 4. Guarda el archivo como cookies.txt
-          # 5. En KC Downloader, pulsa el botón "Cookies: Browse..." y selecciónalo
-          #
-          # Para Spotify NO hace falta cookies — la app descarga via YouTube.
-          #
-          # Netscape HTTP Cookie File — NO BORRAR ESTA LÍNEA
-          EOF
-
-      - name: Create tarball
-        run: |
-          tar -czf kc-downloader-linux-x64.tar.gz -C bundle .
-          echo "TAR total: $(du -sh kc-downloader-linux-x64.tar.gz | cut -f1)"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-build
-          path: kc-downloader-linux-x64.tar.gz
-
-  # ─── Release ──────────────────────────────────────────────────────────────
   release:
-    needs: [build-windows, build-linux]
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "KC Downloader ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}"
-          tag_name: "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}"
-          body: |
-            ## KC Downloader ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
-
-            ### Descarga
-            | Plataforma | Archivo |
-            |---|---|
-            | Windows 64-bit | `kc-downloader-windows-x64.zip` |
-            | Linux 64-bit | `kc-downloader-linux-x64.tar.gz` |
-
-            ### Instalación — **extrae el ZIP completo y ejecuta directamente**
-
-            No se necesita instalar Python, pip, ni nada más.
-            Todo está incluido dentro del ZIP/TAR.
-
-            #### Windows
-            1. Descarga `kc-downloader-windows-x64.zip`
-            2. Extrae **todos** los archivos en una carpeta (ej. `C:\KC Downloader\`)
-            3. Ejecuta `KC Downloader.exe`
-
-            #### Linux
-            ```bash
-            tar -xzf kc-downloader-linux-x64.tar.gz -C ~/KC-Downloader
-            chmod +x ~/KC-Downloader/"KC Downloader"
-            ~/KC-Downloader/"KC Downloader"
-            ```
-
-            ### Contenido del bundle
-            | Herramienta | Para qué sirve |
-            |---|---|
-            | `KC Downloader.exe` / `KC Downloader` | App principal |
-            | `yt-dlp` | YouTube, YouTube Music, Pinterest |
-            | `ffmpeg` + `ffprobe` | Conversión de audio/video |
-            | `spotdl` | Fallback de Spotify (si falla la búsqueda en YouTube) |
-            | `realesrgan-ncnn-vulkan` + `models/` | Upscale de imágenes (solo Windows) |
-            | `cookies_TEMPLATE.txt` | Instrucciones para cookies (contenido restringido) |
-
-            ### Spotify
-            KC Downloader descarga canciones de Spotify buscándolas en YouTube — **sin necesidad de cuenta de Spotify ni APIs de pago**.
-            Para playlists grandes o contenido de nicho, `spotdl` se usa como respaldo automático.
-
-            ### Cookies (YouTube age-restricted / membresías)
-            Abre la app → botón **Cookies: Browse...** → selecciona tu `cookies.txt`.
-            Ver `cookies_TEMPLATE.txt` para instrucciones de exportación.
-          files: |
-            artifacts/windows-build/kc-downloader-windows-x64.zip
-            artifacts/linux-build/kc-downloader-linux-x64.tar.gz
+          path: out
+      - name: Notas desde CHANGELOG.md
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          awk -v v="$ver" 'index($0, "## [v" v "]") == 1 || index($0, "## [" v "]") == 1 {f=1; next} f && /^## \[/ {exit} f' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md no tiene sección para $ver"; exit 1; }
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" out/*/* --title "KC Downloader $GITHUB_REF_NAME" --notes-file notes.md
