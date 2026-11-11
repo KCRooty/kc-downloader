@@ -69,7 +69,7 @@ only the tools shipped in the release (no Python, no system yt-dlp/ffmpeg).
   Linux (window under X11/Xvfb + downloads), all in WSL2.
 - Real-ESRGAN publishes no checksums, so its download is the only one not verified
   by SHA-256.
-- Linux needs a desktop with OpenGL/EGL (`libEGL`); any normal desktop distro has it.
+- Linux needs glibc 2.36+ (Ubuntu 24.04+, Mint 22+, Debian 12+, Fedora 37+, Arch, CachyOS…; not Ubuntu 22.04) and a desktop with OpenGL/EGL (`libEGL`), which any normal desktop distro has.
 - The release archive is big (~260 MB Windows, ~290 MB Linux) because it carries
   FFmpeg, Deno and Real-ESRGAN.
 - YouTube may ask some IPs to "confirm you're not a bot"; use cookies from your
