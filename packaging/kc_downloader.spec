@@ -14,7 +14,8 @@ if not IS_WIN:
     # el build se para: sin ellas la ventana no abre en Arch/CachyOS y otras.
     missing = []
     for lib in ("libxcb-cursor.so.0", "libxcb-icccm.so.4", "libxcb-keysyms.so.1", "libxcb-shape.so.0",
-                "libxcb-image.so.0", "libxcb-render-util.so.0", "libxcb-xkb.so.1", "libxkbcommon-x11.so.0"):
+                "libxcb-image.so.0", "libxcb-render-util.so.0", "libxcb-xkb.so.1", "libxkbcommon-x11.so.0",
+                "libxcb-randr.so.0"):
         for d in ("/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib"):
             if os.path.exists(f"{d}/{lib}"):
                 binaries.append((f"{d}/{lib}", "."))
@@ -24,7 +25,7 @@ if not IS_WIN:
     if missing:
         raise SystemExit("Faltan librerías X11 para el bundle de Linux: " + ", ".join(missing)
                          + "\n(Debian/Ubuntu: apt install libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 "
-                           "libxcb-shape0 libxcb-image0 libxcb-render-util0 libxkbcommon-x11-0)")
+                           "libxcb-shape0 libxcb-image0 libxcb-render-util0 libxkbcommon-x11-0 libxcb-randr0)")
 
 a = Analysis(
     [str(ROOT / "kc_downloader.py")],

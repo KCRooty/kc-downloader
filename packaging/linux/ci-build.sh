@@ -12,7 +12,7 @@ APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=20"
 sed -i '/-security/d' /etc/apt/sources.list 2>/dev/null || true
 apt-get $APT update -q
 apt-get $APT install -y -q --no-install-recommends \
-  binutils libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-image0 \
+  binutils libxcb-randr0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-image0 \
   libxcb-render-util0 libxcb-xkb1 libxkbcommon-x11-0 libegl1 libgl1 libfontconfig1 \
   libdbus-1-3 libglib2.0-0 libx11-6 libx11-xcb1 libxext6 libxrender1 libxi6 libsm6 \
   libice6 libfreetype6 libxkbcommon0 xvfb xauth ca-certificates >/dev/null
