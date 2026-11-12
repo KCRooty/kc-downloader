@@ -111,6 +111,11 @@ capped at about 100 tracks, and Pinterest video and Real-ESRGAN have not been te
 
 Python · PySide6 (Qt 6) · yt-dlp · FFmpeg · Deno · Pillow · Real-ESRGAN ncnn Vulkan · PyInstaller
 
+## License
+
+KC Downloader is free software under the [GNU General Public License v3.0](LICENSE).
+The tools it downloads and runs (yt-dlp, FFmpeg, Deno, Real-ESRGAN) keep their own licenses.
+
 ---
 
 Made by [Rooty / KCRooty](https://github.com/KCRooty) · [Static Forge](https://github.com/KCRooty)

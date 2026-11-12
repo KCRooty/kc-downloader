@@ -2,6 +2,12 @@
 
 All notable changes to KC Downloader are documented here.
 
+## [Unreleased]
+
+### Added
+- **License: GPL-3.0.** The project now ships a `LICENSE` file; release packages
+  include it from the next version on.
+
 ## [v3.0.1] - 2026-11-11
 
 Linux release that also runs on older distros. No changes to the app itself.
